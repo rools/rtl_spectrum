@@ -1,2 +1,2 @@
-radio: main.cpp
-	g++ -framework Cocoa -framework OpenGL -lglfw -lrtlsdr -lfftw3 -lm -o radio main.cpp
+radio: main.c
+	cc -framework Cocoa -framework OpenGL -lglfw -lrtlsdr -lfftw3 -lm -o radio main.c

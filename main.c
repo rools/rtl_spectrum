@@ -1,10 +1,11 @@
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <fftw3.h>
 #include <GL/glfw.h>
 #include <rtl-sdr.h>
+#include <unistd.h>
 
 const int FFT_SIZE = 2048;
 
@@ -21,7 +22,7 @@ void GLFWCALL windowSizeCallback(int width, int height) {
 }
 
 void printHelp(const char *name) {
-	printf("usage: %s frequency", name);
+	printf("usage: %s [-s sample_rate] frequency\n", name);
 }
 
 void initGui() {
@@ -80,10 +81,31 @@ int main(int argc, char *argv[]) {
 	float frequency = 88.0;
 	float sampleRate = 2.4;
 
+	// getopt should not print any errors
+	opterr = 0;
+
+	int c;
+	while ((c = getopt(argc, argv, "s:")) != -1) {
+		if (c == 's')
+			sampleRate = atof(optarg);
+		else {
+			printHelp(argv[0]);
+			exit(1);
+		}
+	}
+
+	// Check if a frequency is not specified
+	if (optind == argc) {
+		printHelp(argv[0]);
+		exit(1);
+	}
+
+	frequency = atof(argv[optind]);
+
 	initGui();
 	initSdr(sampleRate * 1e6, frequency * 1e6);
 
-	unsigned char *radioBuffer = (unsigned char *)malloc(OUT_BLOCK_SIZE * 4);
+	unsigned char *radioBuffer = malloc(OUT_BLOCK_SIZE * 4);
 
 	// Set up FFT resources
 	fftw_complex *fftIn, *fftOut;
@@ -91,10 +113,10 @@ int main(int argc, char *argv[]) {
     fftOut = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * FFT_SIZE);
     fftw_plan fftPlan = fftw_plan_dft_1d(FFT_SIZE, fftIn, fftOut, FFTW_FORWARD, FFTW_ESTIMATE);
 
-    float *averaged = new float[FFT_SIZE];
+    float *averaged = malloc(FFT_SIZE * sizeof(float));
     memset(averaged, 0, FFT_SIZE * sizeof(float));
 
-	bool running = true;
+	int running = 1;
 
 	// Main loop
 	while (running) {
@@ -117,7 +139,7 @@ int main(int argc, char *argv[]) {
 
 			for (int i = 0; i < FFT_SIZE; ++i) {
 				// Calculate the logarithmic magnitude of the complex FFT output
-				float magnitude = 0.1 * log(fftOut[i][0] * fftOut[i][0] + fftOut[i][1] * fftOut[i][1] + 1.0);
+				float magnitude = 0.05 * log(fftOut[i][0] * fftOut[i][0] + fftOut[i][1] * fftOut[i][1] + 1.0);
 
 				// Average the signal
 				averaged[i] -= 0.01f * (averaged[i] - magnitude);
@@ -178,6 +200,8 @@ int main(int argc, char *argv[]) {
 
 		running = !glfwGetKey(GLFW_KEY_ESC) && glfwGetWindowParam(GLFW_OPENED);
 	}
+
+	free(averaged);
 
 	fftw_destroy_plan(fftPlan);
 	fftw_free(fftIn);
